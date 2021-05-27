@@ -190,12 +190,18 @@ namespace xt
                                                                   have_all_seen,
                                                                   range_seen || is_range_slice,
                                                                   xtl::mpl::pop_front_t<V>>::value;
+			static constexpr size_t contiguous_dimensions = is_contiguous_view_impl<layout_type::row_major,
+                                                                  is_valid,
+                                                                  have_all_seen,
+                                                                  range_seen || is_range_slice,
+                                                                  xtl::mpl::pop_front_t<V>>::contiguous_dimensions + (value ? 1 :0);
         };
 
         template <bool valid, bool all_seen, bool range_seen>
         struct is_contiguous_view_impl<layout_type::row_major, valid, all_seen, range_seen, xtl::mpl::vector<>>
         {
             static constexpr bool value = valid;
+			static constexpr size_t contiguous_dimensions = 0;
         };
 
         // For column major the *same* but reverse is true -- with the additional
@@ -976,12 +982,17 @@ namespace xt
             }
             else
             {
+				return self(this)->m_e.layout()==layout_type::row_major ?
+					((self(this)->strides()[self(this)->strides().size()-1] == 1) ? self(this)->m_e.layout() : layout_type::dynamic) :
+					((self(this)->strides()[0] == 1) ? self(this)->m_e.layout() : layout_type::dynamic);
+					
                 bool strides_match = do_strides_match(self(this)->shape(), self(this)->strides(), self(this)->m_e.layout(), true);
                 return strides_match ? self(this)->m_e.layout() : layout_type::dynamic;
             }
         },
         /* else */ [&](auto /*self*/)
         {
+			std::cout << "View is not strided!" << std::endl;
             return layout_type::dynamic;
         });
     }
@@ -989,7 +1000,24 @@ namespace xt
     template <class CT, class... S>
     inline bool xview<CT, S...>::is_contiguous() const noexcept
     {
-        return layout() != layout_type::dynamic;
+		return xtl::mpl::static_if<is_strided_view>([&](auto self)
+        {
+            if (static_layout != layout_type::dynamic)
+            {
+                return true;
+            }
+            else
+            {
+                bool strides_match = do_strides_match(self(this)->shape(), self(this)->strides(), self(this)->m_e.layout(), true);
+                return strides_match ? self(this)->m_e.layout()!=layout_type::dynamic : false;
+            }
+        },
+        /* else */ [&](auto /*self*/)
+        {
+            return false;
+        });
+		
+//         return layout() != layout_type::dynamic;
     }
 
     //@}
